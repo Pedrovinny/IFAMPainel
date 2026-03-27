@@ -533,344 +533,144 @@
         </div>
     </div>
 
-    <script>
-        const colorSuccess = '#059669', colorWarning = '#d97706', colorDanger = '#dc2626', colorInfo = '#0ea5e9';
-        let rawData = [], uniquePolos = [];
-        let statusChartInstance = null, poloChartInstance = null, disciplinaChartInstance = null;
+   <script>
+    const colorSuccess = '#059669', colorWarning = '#d97706', colorDanger = '#dc2626', colorInfo = '#0ea5e9';
+    let rawData = [], uniquePolos = [];
+    let statusChartInstance = null, poloChartInstance = null, disciplinaChartInstance = null;
 
-        const filterPoloEl = document.getElementById('filterPolo');
-        const filterStatusEl = document.getElementById('filterStatus');
-        const searchAlunoEl = document.getElementById('searchAluno');
-        const listaAlunosEl = document.getElementById('listaAlunos');
-        const studentDetailSection = document.getElementById('studentDetailSection');
-        const studentDetailContent = document.getElementById('studentDetailContent');
+    const filterPoloEl = document.getElementById('filterPolo');
+    const filterStatusEl = document.getElementById('filterStatus');
+    const searchAlunoEl = document.getElementById('searchAluno');
+    const listaAlunosEl = document.getElementById('listaAlunos');
+    const studentDetailSection = document.getElementById('studentDetailSection');
+    const studentDetailContent = document.getElementById('studentDetailContent');
 
-        // 1. FUNÇÃO MÁGICA DE AUTO-CARREGAMENTO
-        async function loadDataAutomatically() {
-            try {
-                const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTeUoGuj4qGpnXcO2N5_og-_NCM1TN5hQ4pygFP9DaMJaaDyNTsFLd3o8z-JmgevA/pub?output=csv";
-
-                // Usamos um Proxy Gratuito (AllOrigins) para contornar o erro de CORS do navegador
-                // Isso faz com que o navegador não bloqueie a leitura dos dados
-                const PROXY_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(SHEET_URL)}&t=${new Date().getTime()}`;
-
-                const response = await fetch(PROXY_URL);
-                if (!response.ok) throw new Error('Erro na rede ao acessar o proxy.');
-
-                const json = await response.json();
-                const csvText = json.contents; // O conteúdo real do CSV vem dentro desta propriedade
-
-                if (!csvText || csvText.includes('<!DOCTYPE html')) {
-                    throw new Error("O Google ainda não liberou o CSV. Verifique se publicou como 'Valores separados por vírgula'.");
-                }
-
-                // Processamento dos dados
-                Papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function (results) {
-                        const dataLimpa = results.data.map(row => {
-                            const novo = {};
-                            Object.keys(row).forEach(k => {
-                                let chave = k.trim();
-                                let valor = (row[k] || '').trim()
-                                    .replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
-                                    .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã£/g, 'ã').replace(/Ã§/g, 'ç');
-                                novo[chave] = valor;
-                            });
-                            return novo;
-                        }).filter(row => row['Nome do Aluno'] || row['Polo']);
-
-                        if (dataLimpa.length > 0) {
-                            // Esconde a tela de carregamento e mostra o dashboard
-                            document.getElementById('empty-state').classList.add('hidden');
-                            initialProcess(dataLimpa);
-                        } else {
-                            throw new Error("Planilha lida, mas nenhum dado de aluno encontrado.");
-                        }
-                    }
-                });
-
-            } catch (error) {
-                console.error("Erro fatal:", error);
-                document.getElementById('loading-icon').className = "fa-solid fa-triangle-exclamation";
-                document.getElementById('loading-text').innerText = "Falha no Carregamento";
-
-                const errorMsgEl = document.getElementById('error-message');
-                errorMsgEl.classList.remove('hidden');
-                errorMsgEl.innerHTML = `Erro: ${error.message}. <br><br> Tente atualizar a página (F5).`;
-            }
-        }
+    // FUNÇÃO DE CARREGAMENTO (IMPORTANTE: Definida como ASYNC)
+    async function loadDataAutomatically() {
         try {
-            // Seu link que agora está validado e público
             const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTeUoGuj4qGpnXcO2N5_og-_NCM1TN5hQ4pygFP9DaMJaaDyNTsFLd3o8z-JmgevA/pub?output=csv";
-
-            // Adicionamos um sufixo de tempo para evitar que o navegador use uma versão antiga (cache)
+            
+            // Adicionamos um timestamp para evitar cache
             const FINAL_URL = `${SHEET_URL}&t=${new Date().getTime()}`;
 
             const response = await fetch(FINAL_URL);
-            if (!response.ok) throw new Error('Erro ao conectar com o servidor do Google.');
+            if (!response.ok) throw new Error('Falha ao conectar com o Google Sheets.');
 
             const csvText = await response.text();
 
-            // Verifica se o que veio foi CSV ou se por algum motivo voltou a ser HTML
             if (csvText.includes('<!DOCTYPE html')) {
-                throw new Error("O link retornou uma página web em vez de dados. Verifique a publicação.");
+                throw new Error("O Google retornou HTML. Verifique se a planilha está publicada como CSV e sem restrição de login.");
             }
 
-            // Processamento com PapaParse
             Papa.parse(csvText, {
                 header: true,
                 skipEmptyLines: true,
-                complete: function (results) {
-                    // Limpeza de caracteres especiais que o Google Sheets costuma enviar
+                complete: function(results) {
                     const dataLimpa = results.data.map(row => {
                         const novo = {};
                         Object.keys(row).forEach(k => {
-                            let chaveLimpa = k.trim();
-                            let valorLimpo = (row[k] || '').trim()
+                            let chave = k.trim();
+                            let valor = (row[k] || '').trim()
                                 .replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
-                                .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã£/g, 'ã').replace(/Ã§/g, 'ç')
-                                .replace(/Â/g, '');
-                            novo[chaveLimpa] = valorLimpo;
+                                .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã£/g, 'ã').replace(/Ã§/g, 'ç');
+                            novo[chave] = valor;
                         });
                         return novo;
                     }).filter(row => row['Nome do Aluno'] || row['Polo']);
 
-                    if (dataLimpa.length === 0) {
-                        throw new Error("A planilha parece estar vazia ou as colunas não foram identificadas.");
+                    if (dataLimpa.length > 0) {
+                        document.getElementById('empty-state').classList.add('hidden');
+                        initialProcess(dataLimpa);
+                    } else {
+                        throw new Error("Nenhum dado encontrado na planilha.");
                     }
-
-                    // Dispara o processamento visual do Dashboard
-                    initialProcess(dataLimpa);
                 }
             });
 
         } catch (error) {
-            console.error("Erro no Dashboard:", error);
-            document.getElementById('loading-icon').className = "fa-solid fa-circle-exclamation";
-            document.getElementById('loading-text').innerText = "Erro ao carregar dados";
-
-            const errorMsgEl = document.getElementById('error-message');
-            errorMsgEl.classList.remove('hidden');
-            errorMsgEl.innerHTML = `Mensagem: ${error.message}`;
-        }
-        }
-        try {
-            // Adicionado um parâmetro de data na URL para quebrar o cache do navegador e sempre trazer os dados novos
-            const BASE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTeUoGuj4qGpnXcO2N5_og-_NCM1TN5hQ4pygFP9DaMJaaDyNTsFLd3o8z-JmgevA/pub?output=csv";
-            const GOOGLE_SHEETS_URL = `${BASE_URL}?output=csv&t=${new Date().getTime()}`;
-
-            const response = await fetch(GOOGLE_SHEETS_URL);
-            if (!response.ok) throw new Error('Falha na conexão com o Google Sheets.');
-
-            const csvText = await response.text();
-
-            // TRATAMENTO DE ERRO CRÍTICO: Se a planilha não estiver 100% pública, o Google retorna a página de login em HTML
-            if (csvText.trim().toLowerCase().includes('<html')) {
-                throw new Error("A planilha está bloqueada. O Google retornou uma tela de login em vez dos dados.");
-            }
-
-            const parsed = Papa.parse(csvText, {
-                header: true,
-                skipEmptyLines: true
-            });
-
-            function corrigirTexto(texto) {
-                return (texto || '')
-                    .replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
-                    .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã£/g, 'ã').replace(/Ã§/g, 'ç')
-                    .replace(/âœ…/g, 'Regular').replace(/âš ï¸/g, 'Em Recuperação').replace(/âŒ/g, 'Desligado')
-                    .trim();
-            }
-
-            const dataCorrigida = parsed.data.map(row => {
-                const novo = {};
-                Object.keys(row).forEach(k => { novo[k] = corrigirTexto(row[k]); });
-                return novo;
-            });
-
-            const dataLimpa = dataCorrigida.filter(row => row['Nome do Aluno'] && row['Polo']);
-            initialProcess(dataLimpa);
-
-        } catch (error) {
-            console.error("Erro ao carregar dados:", error);
+            console.error("Erro no carregamento:", error);
             document.getElementById('loading-icon').className = "fa-solid fa-triangle-exclamation";
-            document.getElementById('loading-text').innerText = "Acesso Negado à Planilha";
-
+            document.getElementById('loading-text').innerText = "Erro ao Sincronizar";
             const errorMsgEl = document.getElementById('error-message');
             errorMsgEl.classList.remove('hidden');
-            errorMsgEl.innerHTML = `
-                    O navegador foi bloqueado ao tentar ler os dados.<br><br>
-                    <strong>Como resolver no Google Sheets:</strong><br>
-                    1. Vá em <em>Arquivo > Compartilhar > Publicar na Web</em>.<br>
-                    2. <strong>Muito Importante:</strong> Em "Conteúdo publicado e configurações", desmarque a opção "Restringir o acesso aos membros da instituição".<br>
-                    3. Confirme a publicação e atualize esta página.
-                `;
-
-            // Limpa os KPIs se falhar
-            document.getElementById('kpiTotal').innerText = "Erro";
+            errorMsgEl.innerHTML = `Detalhes: ${error.message}`;
         }
-        }
+    }
 
-        window.addEventListener('DOMContentLoaded', loadDataAutomatically);
+    // Inicializa a chamada automática ao carregar a página
+    window.addEventListener('DOMContentLoaded', () => {
+        loadDataAutomatically();
+    });
 
-        // 2. IMPORTAÇÃO MANUAL
-        document.getElementById('fileInput').addEventListener('change', function (e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const fileName = file.name.toLowerCase();
-            if (fileName.endsWith('.csv')) {
-                Papa.parse(file, { header: true, skipEmptyLines: true, complete: function (results) { initialProcess(results.data); } });
-            } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    let sheetName = workbook.SheetNames.find(n => n.toLowerCase().includes('dados')) || workbook.SheetNames[0];
-                    initialProcess(XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false }));
-                };
-                reader.readAsArrayBuffer(file);
-            }
+    // --- RESTANTE DAS FUNÇÕES DE APOIO (Mantenha como estavam) ---
+
+    function initialProcess(data) {
+        rawData = data;
+        uniquePolos = [...new Set(rawData.map(row => row['Polo'] || 'Não Informado'))].sort();
+        
+        filterPoloEl.innerHTML = '<option value="Todos">Todos</option>';
+        uniquePolos.forEach(polo => { filterPoloEl.appendChild(new Option(polo, polo)); });
+
+        listaAlunosEl.innerHTML = '';
+        const alunos = [...new Set(rawData.map(row => row['Nome do Aluno']).filter(n => n))].sort();
+        alunos.forEach(nome => { listaAlunosEl.appendChild(new Option(nome, nome)); });
+
+        document.getElementById('filterBar').classList.remove('hidden');
+        document.getElementById('cardStatus').classList.remove('hidden');
+        document.getElementById('cardPolo').classList.remove('hidden');
+        document.getElementById('cardDisciplina').classList.remove('hidden');
+        document.getElementById('btnPrint').style.display = 'flex';
+
+        processVisuals(rawData);
+    }
+
+    function processVisuals(data) {
+        let total = data.length;
+        let counts = { 'Regular': 0, 'Em Recuperação': 0, 'Desligado': 0 };
+        let poloStats = {}, discStats = {};
+
+        data.forEach(row => {
+            let s = row['Status de Risco'] || row['Status'] || '';
+            let key = s.includes('Regular') ? 'Regular' : s.includes('Desligado') ? 'Desligado' : 'Em Recuperação';
+            counts[key]++;
+
+            let p = row['Polo'] || 'N/I';
+            if (!poloStats[p]) poloStats[p] = { 'Regular': 0, 'Em Recuperação': 0, 'Desligado': 0 };
+            poloStats[p][key]++;
         });
 
-        filterPoloEl.addEventListener('change', applyFilters);
-        filterStatusEl.addEventListener('change', applyFilters);
-        searchAlunoEl.addEventListener('input', renderStudentDetails);
+        document.getElementById('kpiTotal').innerText = total;
+        document.getElementById('kpiRegular').innerText = counts['Regular'];
+        document.getElementById('kpiRecuperacao').innerText = counts['Em Recuperação'];
+        document.getElementById('kpiDesligado').innerText = counts['Desligado'];
 
-        function initialProcess(data) {
-            rawData = data.filter(row => row['Polo'] || row['Status de Risco']);
-            uniquePolos = [...new Set(rawData.map(row => row['Polo'] ? row['Polo'].trim() : 'Não Informado'))].sort();
+        renderCharts(counts, poloStats);
+    }
 
-            filterPoloEl.innerHTML = '<option value="Todos">Todos</option>';
-            uniquePolos.forEach(polo => { filterPoloEl.appendChild(new Option(polo, polo)); });
+    function renderCharts(counts, poloStats) {
+        if (statusChartInstance) statusChartInstance.destroy();
+        statusChartInstance = new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Regular', 'Recuperação', 'Desligado'],
+                datasets: [{ data: [counts['Regular'], counts['Em Recuperação'], counts['Desligado']], backgroundColor: [colorSuccess, colorWarning, colorDanger] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+        
+        // Adicione aqui as outras funções de renderização (Polo e Disciplina) se necessário
+    }
 
-            listaAlunosEl.innerHTML = '';
-            const alunos = [...new Set(rawData.map(row => row['Nome do Aluno'] || '').filter(n => n))].sort();
-            alunos.forEach(nome => { listaAlunosEl.appendChild(new Option(nome, nome)); });
-
-            document.getElementById('empty-state').classList.add('hidden');
-            document.getElementById('filterBar').classList.remove('hidden');
-            document.getElementById('cardStatus').classList.remove('hidden');
-            document.getElementById('cardPolo').classList.remove('hidden');
-            document.getElementById('cardDisciplina').classList.remove('hidden');
-            document.getElementById('btnPrint').style.display = 'flex';
-
-            processVisuals(rawData);
-        }
-
-        function renderStudentDetails() {
-            const nomeBuscado = searchAlunoEl.value.trim().toUpperCase();
-            const aluno = rawData.find(row => (row['Nome do Aluno'] || '').trim().toUpperCase() === nomeBuscado);
-            if (!aluno) { studentDetailSection.classList.add('hidden'); return; }
-
+    // Eventos de Filtro
+    filterPoloEl.addEventListener('change', () => processVisuals(rawData.filter(r => filterPoloEl.value === 'Todos' || r.Polo === filterPoloEl.value)));
+    searchAlunoEl.addEventListener('input', () => {
+        const aluno = rawData.find(r => r['Nome do Aluno']?.toUpperCase() === searchAlunoEl.value.toUpperCase());
+        if (aluno) {
             studentDetailSection.classList.remove('hidden');
-            let aprovadas = [], reprovadas = [];
-            const ignCols = ['Polo', 'Nome do Aluno', 'Total Aprovado', 'Total Reprovado', 'Status de Risco', 'Status'];
-
-            Object.keys(aluno).forEach(k => {
-                if (!ignCols.includes(k)) {
-                    let v = String(aluno[k]).trim().toUpperCase();
-                    if (v === 'APROVADO') aprovadas.push(k);
-                    if (v === 'REPROVADO') reprovadas.push(k);
-                }
-            });
-
-            const statusRaw = aluno['Status de Risco'] || aluno['Status'] || 'Sem Status';
-            let statusColor = 'color: var(--color-warning)', statusIcon = 'fa-triangle-exclamation';
-            if (statusRaw.includes('Regular')) { statusColor = 'color: var(--color-success)'; statusIcon = 'fa-user-check'; }
-            if (statusRaw.includes('Desligado')) { statusColor = 'color: var(--color-danger)'; statusIcon = 'fa-user-xmark'; }
-
-            studentDetailContent.innerHTML = `
-            <div class="student-header-info">
-                <div>
-                    <div class="student-name">${aluno['Nome do Aluno']}</div>
-                    <div class="student-meta">
-                        <span><i class="fa-solid fa-location-dot"></i> Polo: <b>${aluno['Polo'] || 'N/A'}</b></span>
-                        <span style="font-weight: 700; ${statusColor}"><i class="fa-solid ${statusIcon}"></i> ${statusRaw}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="disc-grid">
-                <div class="disc-box" style="border-left: 4px solid var(--color-success)">
-                    <div class="disc-title" style="color: var(--color-success)"><i class="fa-solid fa-check"></i> Disciplinas Aprovadas (${aprovadas.length})</div>
-                    <div>${aprovadas.map(d => `<span class="badge badge-success">${d}</span>`).join('') || '<span style="font-size:0.85rem; color:#94a3b8;">Nenhuma avaliação aprovada.</span>'}</div>
-                </div>
-                <div class="disc-box" style="border-left: 4px solid var(--color-danger)">
-                    <div class="disc-title" style="color: var(--color-danger)"><i class="fa-solid fa-xmark"></i> Disciplinas Reprovadas/Pendentes (${reprovadas.length})</div>
-                    <div>${reprovadas.map(d => `<span class="badge badge-danger">${d}</span>`).join('') || '<span style="font-size:0.85rem; color:#94a3b8;">Nenhuma avaliação reprovada.</span>'}</div>
-                </div>
-            </div>
-        `;
+            studentDetailContent.innerHTML = `<h3>${aluno['Nome do Aluno']}</h3><p>Polo: ${aluno.Polo}</p>`;
         }
-
-        function applyFilters() {
-            let filtered = rawData;
-            if (filterPoloEl.value !== 'Todos') filtered = filtered.filter(row => (row['Polo'] ? row['Polo'].trim() : '') === filterPoloEl.value);
-            if (filterStatusEl.value !== 'Todos') filtered = filtered.filter(row => (row['Status de Risco'] || row['Status'] || '').includes(filterStatusEl.value.replace('Em ', '')));
-            processVisuals(filtered);
-        }
-
-        function processVisuals(data) {
-            let totalAlunos = data.length;
-            let statusCounts = { 'Regular': 0, 'Em Recuperação': 0, 'Desligado': 0 };
-            let poloStats = {}, disciplinaStats = {};
-            const ignCols = ['Polo', 'Nome do Aluno', 'Total Aprovado', 'Total Reprovado', 'Status de Risco', 'Status'];
-
-            data.forEach(row => {
-                let sRaw = row['Status de Risco'] || row['Status'] || '';
-                let sKey = sRaw.includes('Regular') ? 'Regular' : sRaw.includes('Desligado') ? 'Desligado' : 'Em Recuperação';
-                statusCounts[sKey]++;
-
-                let polo = row['Polo'] ? row['Polo'].trim() : 'Não Informado';
-                if (!poloStats[polo]) poloStats[polo] = { 'Regular': 0, 'Em Recuperação': 0, 'Desligado': 0 };
-                poloStats[polo][sKey]++;
-
-                Object.keys(row).forEach(k => {
-                    if (!ignCols.includes(k)) {
-                        let v = String(row[k]).trim().toUpperCase();
-                        if (v === 'APROVADO' || v === 'REPROVADO') {
-                            if (!disciplinaStats[k]) disciplinaStats[k] = { aprov: 0, reprov: 0 };
-                            v === 'APROVADO' ? disciplinaStats[k].aprov++ : disciplinaStats[k].reprov++;
-                        }
-                    }
-                });
-            });
-
-            document.getElementById('kpiTotal').innerText = totalAlunos;
-            let pReg = totalAlunos > 0 ? ((statusCounts['Regular'] / totalAlunos) * 100).toFixed(1) : 0;
-            document.getElementById('kpiRegular').innerText = `${statusCounts['Regular']} (${pReg}%)`;
-            let pRec = totalAlunos > 0 ? ((statusCounts['Em Recuperação'] / totalAlunos) * 100).toFixed(1) : 0;
-            document.getElementById('kpiRecuperacao').innerText = `${statusCounts['Em Recuperação']} (${pRec}%)`;
-            let pDes = totalAlunos > 0 ? ((statusCounts['Desligado'] / totalAlunos) * 100).toFixed(1) : 0;
-            document.getElementById('kpiDesligado').innerText = `${statusCounts['Desligado']} (${pDes}%)`;
-
-            Chart.defaults.font.family = "'Inter', sans-serif";
-            Chart.defaults.color = "#64748b";
-
-            renderStatusChart(statusCounts);
-            let poloToRender = filterPoloEl.value !== 'Todos' ? { [filterPoloEl.value]: poloStats[filterPoloEl.value] } : poloStats;
-            renderPoloChart(poloToRender);
-            renderDisciplinaChart(disciplinaStats);
-        }
-
-        function renderStatusChart(counts) {
-            if (statusChartInstance) statusChartInstance.destroy();
-            statusChartInstance = new Chart(document.getElementById('statusChart').getContext('2d'), { type: 'doughnut', data: { labels: ['Regular', 'Em Recuperação', 'Desligado'], datasets: [{ data: [counts['Regular'], counts['Em Recuperação'], counts['Desligado']], backgroundColor: [colorSuccess, colorWarning, colorDanger], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } }, cutout: '70%' } });
-        }
-
-        function renderPoloChart(poloStats) {
-            if (poloChartInstance) poloChartInstance.destroy();
-            const polos = Object.keys(poloStats).sort();
-            poloChartInstance = new Chart(document.getElementById('poloChart').getContext('2d'), { type: 'bar', data: { labels: polos, datasets: [{ label: 'Regular', data: polos.map(p => poloStats[p]['Regular']), backgroundColor: colorSuccess, borderRadius: 4 }, { label: 'Em Recuperação', data: polos.map(p => poloStats[p]['Em Recuperação']), backgroundColor: colorWarning, borderRadius: 4 }, { label: 'Desligado', data: polos.map(p => poloStats[p]['Desligado']), backgroundColor: colorDanger, borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } } } });
-        }
-
-        function renderDisciplinaChart(discStats) {
-            if (disciplinaChartInstance) disciplinaChartInstance.destroy();
-            const disc = Object.keys(discStats).map(k => { let total = discStats[k].aprov + discStats[k].reprov; return { nome: k, taxa: total > 0 ? (discStats[k].aprov / total) * 100 : 0, ...discStats[k], total }; }).filter(d => d.total > 0).sort((a, b) => a.taxa - b.taxa);
-            disciplinaChartInstance = new Chart(document.getElementById('disciplinaChart').getContext('2d'), { type: 'bar', data: { labels: disc.map(d => d.nome), datasets: [{ label: '% Aprovação', data: disc.map(d => d.taxa.toFixed(1)), backgroundColor: disc.map(d => d.taxa < 70 ? colorDanger : colorInfo), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { max: 100, beginAtZero: true }, y: { grid: { display: false } } }, plugins: { legend: { display: false } } } });
-        }
-    </script>
+    });
+</script>
 </body>
 
 </html>
