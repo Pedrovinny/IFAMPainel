@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Executivo GPE | Acompanhamento Acadêmico</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-body: #f1f5f9; --bg-surface: #ffffff; --header-bg: #0f172a; --header-text: #f8fafc;
+            --text-primary: #1e293b; --text-secondary: #64748b; --brand-primary: #3b82f6;
+            --color-success: #059669; --color-warning: #d97706; --color-danger: #dc2626; --color-info: #0ea5e9;
+            --radius-md: 10px; --shadow-sm: 0 1px 3px rgba(0,0,0,0.1); --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-body); color: var(--text-primary); min-height: 100vh; }
+
+        header { background-color: var(--header-bg); color: var(--header-text); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm); position: sticky; top: 0; z-index: 100; }
+        .header-title { display: flex; align-items: center; gap: 12px; }
+        .header-title i { font-size: 1.5rem; color: var(--brand-primary); }
+        .header-title h1 { font-size: 1.25rem; font-weight: 600; }
+
+        .actions-wrapper { display: flex; gap: 10px; align-items: center; }
+        .btn-action { background-color: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 8px 16px; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 8px; }
+        .btn-action:hover { background-color: rgba(255, 255, 255, 0.2); }
+        .btn-print { background-color: transparent; border-color: transparent; }
+        .btn-print:hover { background-color: rgba(255,255,255,0.05); }
+
+        .upload-wrapper { position: relative; }
+        .upload-wrapper input[type="file"] { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem 2rem; }
+
+        .filter-bar { background: var(--bg-surface); border-radius: var(--radius-md); padding: 1rem 1.5rem; margin-bottom: 1.5rem; box-shadow: var(--shadow-sm); border: 1px solid #e2e8f0; display: flex; gap: 20px; flex-wrap: wrap; }
+        .filter-group { display: flex; align-items: center; gap: 10px; }
+        .filter-label { font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); white-space: nowrap; }
+        .filter-select, .filter-input { padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.875rem; outline: none; }
+        .filter-input { width: 300px; }
+        .filter-input:focus { border-color: var(--brand-primary); }
+
+        .student-card { background: var(--bg-surface); border-radius: var(--radius-md); padding: 1.5rem; margin-bottom: 2rem; box-shadow: var(--shadow-md); border: 1px solid var(--brand-primary); border-left: 5px solid var(--brand-primary); }
+        .student-header-info { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0; }
+        .student-name { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .student-meta { display: flex; gap: 20px; color: var(--text-secondary); font-size: 0.95rem; }
+        .disc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .disc-box { background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .disc-title { font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; font-size: 1rem; }
+        .badge { display: inline-block; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin: 4px; box-shadow: var(--shadow-sm); }
+        .badge-success { background: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .badge-danger { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .kpi-card { background: var(--bg-surface); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-md); display: flex; align-items: center; justify-content: space-between; border: 1px solid #e2e8f0; }
+        .kpi-info { display: flex; flex-direction: column; gap: 4px; }
+        .kpi-title { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
+        .kpi-value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+        .kpi-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+        .kpi-total .kpi-icon { background: #e0f2fe; color: var(--color-info); }
+        .kpi-regular .kpi-icon { background: #d1fae5; color: var(--color-success); }
+        .kpi-regular .kpi-value { color: var(--color-success); }
+        .kpi-recuperacao .kpi-icon { background: #fef3c7; color: var(--color-warning); }
+        .kpi-recuperacao .kpi-value { color: var(--color-warning); }
+        .kpi-desligado .kpi-icon { background: #fee2e2; color: var(--color-danger); }
+        .kpi-desligado .kpi-value { color: var(--color-danger); }
+
+        .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+        .chart-card { background: var(--bg-surface); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-md); border: 1px solid #e2e8f0; height: 420px; display: flex; flex-direction: column; }
+        .chart-card.full-width { grid-column: span 2; }
+        .chart-header { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #f1f5f9; }
+        .chart-title { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+        .chart-subtitle { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+        .canvas-wrapper { flex-grow: 1; position: relative; width: 100%; }
+
+        #empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-secondary); grid-column: span 2; }
+        #empty-state i { font-size: 3rem; margin-bottom: 1rem; color: #cbd5e1; }
+        .hidden { display: none !important; }
+
+        @media print {
+            body { background: white; }
+            header, .actions-wrapper { display: none; }
+            .container { padding: 0; }
+            .kpi-card, .chart-card, .filter-bar, .student-card { box-shadow: none; border: 1px solid #cbd5e1; break-inside: avoid; }
+            .charts-grid { display: block; }
+            .chart-card { margin-bottom: 1.5rem; height: 350px; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-title">
+        <i class="fa-solid fa-chart-line"></i>
+        <h1>Gestão e Acompanhamento GPE</h1>
+    </div>
+    <div class="actions-wrapper">
+        <button class="btn-action btn-print" onclick="window.print()" id="btnPrint" style="display:none;">
+            <i class="fa-solid fa-print"></i> Exportar PDF
+        </button>
+        <div class="upload-wrapper">
+            <button class="btn-action">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Atualizar Excel
+            </button>
+            <input type="file" id="fileInput" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" />
+        </div>
+    </div>
+</header>
+
+<div class="container">
+    <div class="filter-bar hidden" id="filterBar">
+        <div class="filter-group">
+            <label class="filter-label" for="searchAluno"><i class="fa-solid fa-magnifying-glass"></i> Buscar Aluno:</label>
+            <input type="text" id="searchAluno" class="filter-input" list="listaAlunos" placeholder="Digite o nome..." autocomplete="off">
+            <datalist id="listaAlunos"></datalist>
+        </div>
+
+        <div class="filter-group" style="margin-left: auto;">
+            <label class="filter-label" for="filterPolo">Polo:</label>
+            <select class="filter-select" id="filterPolo"><option value="Todos">Todos</option></select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label" for="filterStatus">Status:</label>
+            <select class="filter-select" id="filterStatus">
+                <option value="Todos">Todos</option>
+                <option value="Regular">✅ Regular</option>
+                <option value="Em Recuperação">⚠️ Recuperação</option>
+                <option value="Desligado">❌ Desligado</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="studentDetailSection" class="hidden">
+        <div class="student-card" id="studentDetailContent"></div>
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card kpi-total">
+            <div class="kpi-info"><span class="kpi-title">Matriculados</span><span class="kpi-value" id="kpiTotal"><i class="fa-solid fa-spinner fa-spin" style="font-size: 1rem;"></i></span></div>
+            <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
+        </div>
+        <div class="kpi-card kpi-regular">
+            <div class="kpi-info"><span class="kpi-title">Regulares (Sucesso)</span><span class="kpi-value" id="kpiRegular">-</span></div>
+            <div class="kpi-icon"><i class="fa-solid fa-user-check"></i></div>
+        </div>
+        <div class="kpi-card kpi-recuperacao">
+            <div class="kpi-info"><span class="kpi-title">Em Recuperação</span><span class="kpi-value" id="kpiRecuperacao">-</span></div>
+            <div class="kpi-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        </div>
+        <div class="kpi-card kpi-desligado">
+            <div class="kpi-info"><span class="kpi-title">Desligados (Evasão)</span><span class="kpi-value" id="kpiDesligado">-</span></div>
+            <div class="kpi-icon"><i class="fa-solid fa-user-xmark"></i></div>
+        </div>
+    </div>
+
+    <div class="charts-grid">
+        <div id="empty-state">
+            <i class="fa-solid fa-spinner fa-spin" style="color: var(--brand-primary);"></i>
+            <h2>Carregando dados da nuvem...</h2>
+        </div>
+        <div class="chart-card hidden" id="cardStatus">
+            <div class="chart-header"><h3 class="chart-title">Composição da Turma</h3><p class="chart-subtitle">Distribuição proporcional do status</p></div>
+            <div class="canvas-wrapper"><canvas id="statusChart"></canvas></div>
+        </div>
+        <div class="chart-card hidden" id="cardPolo">
+            <div class="chart-header"><h3 class="chart-title">Desempenho por Polo</h3><p class="chart-subtitle">Comparativo de retenção e evasão</p></div>
+            <div class="canvas-wrapper"><canvas id="poloChart"></canvas></div>
+        </div>
+        <div class="chart-card full-width hidden" id="cardDisciplina">
+            <div class="chart-header"><h3 class="chart-title">Mapa de Aprovação por Disciplina</h3><p class="chart-subtitle">Componentes com menos de 70% de aprovação destacados em vermelho</p></div>
+            <div class="canvas-wrapper"><canvas id="disciplinaChart"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const colorSuccess = '#059669', colorWarning = '#d97706', colorDanger = '#dc2626', colorInfo = '#0ea5e9';
+    let rawData = [], uniquePolos = [];
+    let statusChartInstance = null, poloChartInstance = null, disciplinaChartInstance = null;
+
+    const filterPoloEl = document.getElementById('filterPolo');
+    const filterStatusEl = document.getElementById('filterStatus');
+    const searchAlunoEl = document.getElementById('searchAluno');
+    const listaAlunosEl = document.getElementById('listaAlunos');
+    const studentDetailSection = document.getElementById('studentDetailSection');
+    const studentDetailContent = document.getElementById('studentDetailContent');
+
+    // 1. FUNÇÃO MÁGICA DE AUTO-CARREGAMENTO (NOVO)
+    async function loadDataAutomatically() {
+        try {
+            // Ele vai procurar o arquivo chamado dados.xlsx na mesma pasta do servidor
+            const response = await fetch('./dados.xlsx');
+            if (!response.ok) throw new Error('Arquivo não encontrado no servidor');
+
+            const arrayBuffer = await response.arrayBuffer();
+            const data = new Uint8Array(arrayBuffer);
+            const workbook = XLSX.read(data, {type: 'array'});
+            let sheetName = workbook.SheetNames.find(n => n.toLowerCase().includes('dados')) || workbook.SheetNames[0];
+            initialProcess(XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {raw: false}));
+        } catch (error) {
+            console.error("Erro ao carregar os dados automáticos:", error);
+            document.getElementById('empty-state').innerHTML = `
+                <i class="fa-solid fa-file-excel"></i><h2>Nenhum dado pré-carregado encontrado</h2>
+                <p>O arquivo "dados.xlsx" não foi encontrado no servidor. Use o botão no topo para importar manualmente.</p>`;
+        }
+    }
+
+    // Inicia a busca automática assim que a página carrega
+    window.addEventListener('DOMContentLoaded', loadDataAutomatically);
+
+    // 2. IMPORTAÇÃO MANUAL (MANTIDA CASO PRECISE)
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const fileName = file.name.toLowerCase();
+        if (fileName.endsWith('.csv')) {
+            Papa.parse(file, { header: true, skipEmptyLines: true, complete: function(results) { initialProcess(results.data); } });
+        } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                let sheetName = workbook.SheetNames.find(n => n.toLowerCase().includes('dados')) || workbook.SheetNames[0];
+                initialProcess(XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {raw: false}));
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    });
+
+    filterPoloEl.addEventListener('change', applyFilters);
+    filterStatusEl.addEventListener('change', applyFilters);
+    searchAlunoEl.addEventListener('input', renderStudentDetails);
+
+    function initialProcess(data) {
+        rawData = data.filter(row => row['Polo'] || row['Status de Risco']);
+        uniquePolos = [...new Set(rawData.map(row => row['Polo'] ? row['Polo'].trim() : 'Não Informado'))].sort();
+        filterPoloEl.innerHTML = '<option value="Todos">Todos</option>';
+        uniquePolos.forEach(polo => { filterPoloEl.appendChild(new Option(polo, polo)); });
+
+        listaAlunosEl.innerHTML = '';
+        const alunos = [...new Set(rawData.map(row => row['Nome do Aluno'] || '').filter(n => n))].sort();
+        alunos.forEach(nome => { listaAlunosEl.appendChild(new Option(nome, nome)); });
+
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('filterBar').classList.remove('hidden');
+        document.getElementById('cardStatus').classList.remove('hidden');
+        document.getElementById('cardPolo').classList.remove('hidden');
+        document.getElementById('cardDisciplina').classList.remove('hidden');
+        document.getElementById('btnPrint').style.display = 'flex';
+
+        processVisuals(rawData);
+    }
+
+    function renderStudentDetails() {
+        const nomeBuscado = searchAlunoEl.value.trim().toUpperCase();
+        const aluno = rawData.find(row => (row['Nome do Aluno'] || '').trim().toUpperCase() === nomeBuscado);
+        if (!aluno) { studentDetailSection.classList.add('hidden'); return; }
+
+        studentDetailSection.classList.remove('hidden');
+        let aprovadas = [], reprovadas = [];
+        const ignCols = ['Polo', 'Nome do Aluno', 'Total Aprovado', 'Total Reprovado', 'Status de Risco', 'Status'];
+
+        Object.keys(aluno).forEach(k => {
+            if (!ignCols.includes(k)) {
+                let v = String(aluno[k]).trim().toUpperCase();
+                if (v === 'APROVADO') aprovadas.push(k);
+                if (v === 'REPROVADO') reprovadas.push(k);
+            }
+        });
+
+        const statusRaw = aluno['Status de Risco'] || aluno['Status'] || 'Sem Status';
+        let statusColor = 'color: var(--color-warning)', statusIcon = 'fa-triangle-exclamation';
+        if (statusRaw.includes('Regular')) { statusColor = 'color: var(--color-success)'; statusIcon = 'fa-user-check'; }
+        if (statusRaw.includes('Desligado')) { statusColor = 'color: var(--color-danger)'; statusIcon = 'fa-user-xmark'; }
+
+        studentDetailContent.innerHTML = `
+            <div class="student-header-info">
+                <div>
+                    <div class="student-name">${aluno['Nome do Aluno']}</div>
+                    <div class="student-meta">
+                        <span><i class="fa-solid fa-location-dot"></i> Polo: <b>${aluno['Polo'] || 'N/A'}</b></span>
+                        <span style="font-weight: 700; ${statusColor}"><i class="fa-solid ${statusIcon}"></i> ${statusRaw}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="disc-grid">
+                <div class="disc-box" style="border-left: 4px solid var(--color-success)">
+                    <div class="disc-title" style="color: var(--color-success)"><i class="fa-solid fa-check"></i> Disciplinas Aprovadas (${aprovadas.length})</div>
+                    <div>${aprovadas.map(d => `<span class="badge badge-success">${d}</span>`).join('') || '<span style="font-size:0.85rem; color:#94a3b8;">Nenhuma avaliação aprovada.</span>'}</div>
+                </div>
+                <div class="disc-box" style="border-left: 4px solid var(--color-danger)">
+                    <div class="disc-title" style="color: var(--color-danger)"><i class="fa-solid fa-xmark"></i> Disciplinas Reprovadas/Pendentes (${reprovadas.length})</div>
+                    <div>${reprovadas.map(d => `<span class="badge badge-danger">${d}</span>`).join('') || '<span style="font-size:0.85rem; color:#94a3b8;">Nenhuma avaliação reprovada.</span>'}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function applyFilters() {
+        let filtered = rawData;
+        if (filterPoloEl.value !== 'Todos') filtered = filtered.filter(row => (row['Polo'] ? row['Polo'].trim() : '') === filterPoloEl.value);
+        if (filterStatusEl.value !== 'Todos') filtered = filtered.filter(row => (row['Status de Risco'] || row['Status'] || '').includes(filterStatusEl.value.replace('Em ', '')));
+        processVisuals(filtered);
+    }
+
+    function processVisuals(data) {
+        let totalAlunos = data.length;
+        let statusCounts = { 'Regular': 0, 'Em Recuperação': 0, 'Desligado': 0 };
+        let poloStats = {}, disciplinaStats = {};
+        const ignCols = ['Polo', 'Nome do Aluno', 'Total Aprovado', 'Total Reprovado', 'Status de Risco', 'Status'];
+
+        data.forEach(row => {
+            let sRaw = row['Status de Risco'] || row['Status'] || '';
+            let sKey = sRaw.includes('Regular') ? 'Regular' : sRaw.includes('Desligado') ? 'Desligado' : 'Em Recuperação';
+            statusCounts[sKey]++;
+
+            let polo = row['Polo'] ? row['Polo'].trim() : 'Não Informado';
+            if (!poloStats[polo]) poloStats[polo] = { 'Regular': 0, 'Em Recuperação': 0, 'Desligado': 0 };
+            poloStats[polo][sKey]++;
+
+            Object.keys(row).forEach(k => {
+                if (!ignCols.includes(k)) {
+                    let v = String(row[k]).trim().toUpperCase();
+                    if (v === 'APROVADO' || v === 'REPROVADO') {
+                        if (!disciplinaStats[k]) disciplinaStats[k] = { aprov: 0, reprov: 0 };
+                        v === 'APROVADO' ? disciplinaStats[k].aprov++ : disciplinaStats[k].reprov++;
+                    }
+                }
+            });
+        });
+
+        document.getElementById('kpiTotal').innerText = totalAlunos;
+        let pReg = totalAlunos > 0 ? ((statusCounts['Regular'] / totalAlunos) * 100).toFixed(1) : 0;
+        document.getElementById('kpiRegular').innerText = `${statusCounts['Regular']} (${pReg}%)`;
+        let pRec = totalAlunos > 0 ? ((statusCounts['Em Recuperação'] / totalAlunos) * 100).toFixed(1) : 0;
+        document.getElementById('kpiRecuperacao').innerText = `${statusCounts['Em Recuperação']} (${pRec}%)`;
+        let pDes = totalAlunos > 0 ? ((statusCounts['Desligado'] / totalAlunos) * 100).toFixed(1) : 0;
+        document.getElementById('kpiDesligado').innerText = `${statusCounts['Desligado']} (${pDes}%)`;
+
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = "#64748b";
+
+        renderStatusChart(statusCounts);
+        let poloToRender = filterPoloEl.value !== 'Todos' ? { [filterPoloEl.value]: poloStats[filterPoloEl.value] } : poloStats;
+        renderPoloChart(poloToRender);
+        renderDisciplinaChart(disciplinaStats);
+    }
+
+    function renderStatusChart(counts) {
+        if (statusChartInstance) statusChartInstance.destroy();
+        statusChartInstance = new Chart(document.getElementById('statusChart').getContext('2d'), { type: 'doughnut', data: { labels: ['Regular', 'Em Recuperação', 'Desligado'], datasets: [{ data: [counts['Regular'], counts['Em Recuperação'], counts['Desligado']], backgroundColor: [colorSuccess, colorWarning, colorDanger], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } }, cutout: '70%' } });
+    }
+
+    function renderPoloChart(poloStats) {
+        if (poloChartInstance) poloChartInstance.destroy();
+        const polos = Object.keys(poloStats).sort();
+        poloChartInstance = new Chart(document.getElementById('poloChart').getContext('2d'), { type: 'bar', data: { labels: polos, datasets: [ { label: 'Regular', data: polos.map(p => poloStats[p]['Regular']), backgroundColor: colorSuccess, borderRadius: 4 }, { label: 'Em Recuperação', data: polos.map(p => poloStats[p]['Em Recuperação']), backgroundColor: colorWarning, borderRadius: 4 }, { label: 'Desligado', data: polos.map(p => poloStats[p]['Desligado']), backgroundColor: colorDanger, borderRadius: 4 } ]}, options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } } } });
+    }
+
+    function renderDisciplinaChart(discStats) {
+        if (disciplinaChartInstance) disciplinaChartInstance.destroy();
+        const disc = Object.keys(discStats).map(k => { let total = discStats[k].aprov + discStats[k].reprov; return { nome: k, taxa: total > 0 ? (discStats[k].aprov / total) * 100 : 0, ...discStats[k], total }; }).filter(d => d.total > 0).sort((a, b) => a.taxa - b.taxa);
+        disciplinaChartInstance = new Chart(document.getElementById('disciplinaChart').getContext('2d'), { type: 'bar', data: { labels: disc.map(d => d.nome), datasets: [{ label: '% Aprovação', data: disc.map(d => d.taxa.toFixed(1)), backgroundColor: disc.map(d => d.taxa < 70 ? colorDanger : colorInfo), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { max: 100, beginAtZero: true }, y: { grid: { display: false } } }, plugins: { legend: { display: false } } } });
+    }
+</script>
+</body>
+</html>
